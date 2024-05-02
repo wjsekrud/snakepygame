@@ -90,19 +90,25 @@ class Feed(object):
     def __init__(self):
         self.position = (0, 0)
         self.color = ORANGE
-        self.create([],[])
+        self.create()
 
     # Create Food
-    def create(self, snake_positions, obstacle_positions):
+    def create(self, snake_positions=[], obstacle_positions=[[]]):
         while True:
             w = int(SCREEN_WIDTH / 2)
             h = int(SCREEN_HEIGHT / 2)
             sz = GRID_SIZE
             new_position = [sz * random.randint(int(-w/sz)+1, int(h/sz)-1) + w, sz * random.randint(int(-h/sz)+1, int(h/sz)-1) + h]
 
-            if new_position not in snake_positions and new_position not in obstacle_positions:
-                self.position = new_position
-                break
+            if new_position not in snake_positions :
+                if obstacle_positions == [[]]:
+                    self.position = new_position
+                    return
+                else:
+                    for obpos in obstacle_positions:
+                        if new_position not in obpos:
+                            self.position = new_position
+                            return
 
     # Draw Food
     def draw(self, screen):
@@ -115,17 +121,25 @@ class SpecialFeed(object):
         self.color = BLUE
         self.active = False
 
-    def create(self, snake_positions, obstacle_positions):
+    def create(self, snake_positions=[], obstacle_positions=[[]]):
         while True:
             w = int(SCREEN_WIDTH / 2)
             h = int(SCREEN_HEIGHT / 2)
             sz = GRID_SIZE
             new_position = [sz * random.randint(int(-w/sz)+1, int(h/sz)-1) + w, sz * random.randint(int(-h/sz)+1, int(h/sz)-1) + h]
 
-            if new_position not in snake_positions and new_position not in obstacle_positions:
-                self.position = new_position
-                self.active = True
-                break
+            if new_position not in snake_positions:
+                if obstacle_positions == [[]]:
+                    self.position = new_position
+                    self.active = True
+                    return
+                else:
+                    for obpos in obstacle_positions:
+                        if new_position not in obpos:
+                            self.position = new_position
+                            self.active = True
+                            return
+
 
     def draw(self, screen):
         if self.active:
@@ -166,8 +180,8 @@ class Game(object):
         
     def restart(self):
         self.snake.create()
-        self.feed.create([],[])
-        self.special_feed.create([],[])
+        self.feed.create()
+        self.special_feed.create()
         self.special_feed.active = False
        
         self.obstacles = []
