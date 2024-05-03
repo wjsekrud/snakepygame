@@ -23,6 +23,7 @@ WHITE = (255, 255, 255)
 ORANGE = (250, 150, 0)
 GRAY = (100, 100, 100)
 BLUE = (0, 0, 255)
+BLACK = (0, 0, 0)
 
 OBSTACLE_SHAPES = [
     [(0, 0)],  # 1x1 정사각형
@@ -58,18 +59,21 @@ class Snake(object):
         if new in self.positions[2:]:
             sleep(1)
             print('snake length: ' + str(self.length))
-            self.game.restart()
+            self.game.game_over = True
+            return
         # If the snake goes beyond the game screen, the snake is recreated from the beginning
         elif new[0] > SCREEN_WIDTH or new[0] < 0 or new[1] > SCREEN_HEIGHT or new[1] < 0:
             sleep(1)
             print('snake length: ' + str(self.length))
-            self.game.restart()
+            self.game.game_over = True
+            return
             # code here
         # If the snake moves normally
         else:
             self.positions.insert(0, new)
             if len(self.positions) > self.length:
                 self.positions.pop(-1)
+            return
         # code here
 
     # When the snake eats the food
@@ -89,11 +93,15 @@ class Snake(object):
 class Feed(object):
     def __init__(self):
         self.position = (0, 0)
-        self.color = ORANGE
         self.create()
 
     # Create Food
     def create(self, snake_positions=[], obstacle_positions=[[]]):
+        self.color = ORANGE
+        self.score = 100
+        self.frame = 0
+        self.remainingtime = 10
+
         w = int(SCREEN_WIDTH / 2)
         h = int(SCREEN_HEIGHT / 2)
         sz = GRID_SIZE
@@ -118,6 +126,19 @@ class Feed(object):
             else:
                 self.position = new
         return False
+    
+    def passframe(self):
+        self.frame += 1
+        if self.frame >= 10:
+            self.rot()
+            self.frame = 0
+        return
+
+    def rot(self):
+        self.score = max(10, self.score - 10)
+        rotiter = (100 - self.score) // 10
+        red, green, blue = 250- 10 * rotiter, 150, 15 * rotiter
+        self.color = [red, green, blue]
 
 
     # Draw Food
@@ -197,14 +218,23 @@ class Game(object):
         self.special_feed = SpecialFeed()
         self.obstacles = []
         self.speed = 20
-        
+        self.score = 0
+        self.game_over = False
+        self.player_name = "___"
+        self.flipflop = 20
+
     def restart(self):
+        self.player_name = "___"
+        self.game_over = False
+        self.flipflop = 20
+
         self.snake.create()
         self.feed.create()
         self.special_feed.create()
         self.special_feed.active = False
        
         self.obstacles = []
+        self.score = 0
 
     # Game event handling and control
     def process_events(self):
@@ -231,31 +261,35 @@ class Game(object):
         return False
 
     def run_logic(self):
-        self.snake.move()
-        self.check_eat(self.snake, self.feed)
-        self.check_special_eat(self.snake, self.special_feed)
-        self.speed = (20 + self.snake.length) / 4
+        if not self.game_over:
+            self.snake.move()
+            self.check_eat(self.snake, self.feed)
+            self.check_special_eat(self.snake, self.special_feed)
+            self.speed = (20 + self.snake.length) / 4
+            self.feed.passframe()
 
-        # 장애물과 충돌 검사
-        for obstacle in self.obstacles:
-            if self.check_collision(self.snake, obstacle):
-                sleep(1)
-                print('snake length: ' + str(self.snake.length))
-                self.restart()
+            # 장애물과 충돌 검사
+            for obstacle in self.obstacles:
+                if self.check_collision(self.snake, obstacle):
+                    sleep(1)
+                    print('snake length: ' + str(self.snake.length))
+                    self.game_over = True
 
-        if random.random() < 0.003 and not self.special_feed.active:
-            # 장애물 위치 리스트 생성
-            obstacle_positions = [pos for obstacle in self.obstacles for pos in obstacle.positions]
-            
-            self.special_feed.create(self.snake.positions, obstacle_positions)
+            if random.random() < 0.003 and not self.special_feed.active:
+                # 장애물 위치 리스트 생성
+                obstacle_positions = [pos for obstacle in self.obstacles for pos in obstacle.positions]
+                
+                self.special_feed.create(self.snake.positions, obstacle_positions)
 
     # Check if the snake has eaten the food
     def check_eat(self, snake, feed):
         for pos in snake.positions:
             if pos[0] == feed.position[0] and pos[1] == feed.position[1]:
-                print("eat")
+
+                #print("eat")
                 snake.eat()
-                
+                self.score += feed.score
+
                 # 랜덤한 크기와 모양의 장애물 추가
                 obstacle_shape = random.choice(OBSTACLE_SHAPES)
                 obstacle = Obstacle(obstacle_shape)
@@ -272,7 +306,7 @@ class Game(object):
         if special_feed.active:
             for pos in snake.positions:
                 if pos[0] == special_feed.position[0] and pos[1] == special_feed.position[1]:
-                    print("special eat")
+                    #print("special eat")
                     snake.eat()
                     self.special_feed.active = False
                     self.obstacles = []
@@ -289,7 +323,7 @@ class Game(object):
 
     # Display game information
     def draw_info(self, length, speed, screen):
-        info = "Length: " + str(length) + "    " + "Speed: " + str(round(speed, 2))
+        info = "Length: " + str(length) + "    " + "Speed: " + str(round(speed, 2)) + "    Score: " + str(self.score)
         font_path = resource_path("assets/NanumGothicCoding-Bold.ttf")
         font = pygame.font.Font(font_path, 26)
         text_obj = font.render(info, 1, GRAY)
@@ -306,7 +340,60 @@ class Game(object):
         self.special_feed.draw(screen)
         for obstacle in self.obstacles:  # 장애물 리스트 그리기
             obstacle.draw(screen)
+
+        #print(self.flipflop)
+        if self.game_over and self.flipflop > 0:
+            self.draw_game_over(screen)
+            self.draw_player_name(screen)
+            self.draw_rankings(screen)
+            self.flipflop -= 1
+        elif self.game_over:
+            self.flipflop += 20
+
         screen.blit(screen, (0, 0))
+
+    def draw_game_over(self, screen):
+        font_path = resource_path("assets/ARCADE_N.ttf")
+        font = pygame.font.Font(font_path, 36) 
+        text = font.render("Game Over", True, BLACK)
+        text_rect = text.get_rect()
+        text_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 120)
+        screen.blit(text, text_rect)
+
+    def draw_player_name(self, screen):
+        font_path = resource_path("assets/ARCADE_N.ttf")
+        font = pygame.font.Font(font_path, 24)
+        text = font.render("Enter your name: " + self.player_name, True, BLACK)
+        text_rect = text.get_rect()
+        text_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 -70)
+        screen.blit(text, text_rect)
+
+    def draw_rankings(self, screen):
+        font_path = resource_path("assets/ARCADE_N.ttf")
+        font = pygame.font.Font(font_path, 24)
+        rankings = self.load_scores()
+        
+        x = SCREEN_WIDTH // 2 - 150
+        y = SCREEN_HEIGHT // 2 + 10
+        
+        for i, (name, score) in enumerate(rankings[:5], start=1):
+            text = font.render(f"{i}. {name}: {score}", True, BLACK)
+            screen.blit(text, (x, y))
+            y += 30
+
+    def save_score(self):
+        with open("scores.txt", "a") as file:
+            file.write(f"{self.player_name} {self.score}\n")
+
+    def load_scores(self):
+        scores = []
+        if os.path.exists("scores.txt"):
+            with open("scores.txt", "r") as file:
+                for line in file:
+                    name, score = line.strip().split()
+                    scores.append((name, int(score)))
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return scores
 
 # Set resource path
 def resource_path(relative_path):
@@ -327,8 +414,29 @@ def main():
 
     done = False
     while not done:
-        done = game.process_events()
-        game.run_logic()
+        
+        if game.game_over:
+            for event in pygame.event.get():
+
+                if event.type == pygame.QUIT:
+                        done = True
+
+                if event.type == pygame.KEYDOWN:
+                    if event.unicode.isalpha():
+                        unicode = str(event.unicode).upper()
+                        game.player_name += unicode
+                        game.player_name = game.player_name[1:]
+                        
+                    elif event.key == pygame.K_BACKSPACE:
+                        game.player_name = game.player_name[:-1]
+                    elif event.key == pygame.K_RETURN or event.key == pygame.K_r:
+                        game.save_score()
+                        game.restart()
+                    
+        else:
+            done = game.process_events()
+            game.run_logic()
+
         game.display_frame(screen)
         pygame.display.flip()
         clock.tick(game.speed)
