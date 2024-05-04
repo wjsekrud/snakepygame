@@ -134,7 +134,7 @@ class Snake(object):
                 if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] != 1:
 
                     if (nc * GRID_SIZE, nr * GRID_SIZE) in self.positions:
-                        if self.positions.index((nc * GRID_SIZE, nr * GRID_SIZE)) > d:
+                        if self.length - self.positions.index((nc * GRID_SIZE, nr * GRID_SIZE)) - 1 >= d:
                             continue
                     
                     new_dist = d + 1
