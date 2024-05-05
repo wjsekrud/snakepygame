@@ -471,9 +471,12 @@ class Game(object):
         self.special_feed.draw(screen)
         for obstacle in self.obstacles:  # 장애물 리스트 그리기
             obstacle.draw(screen)
-        self.draw_info(self.snake.length, self.speed, screen)
+        if self.game_over == False:
+            try:
+                self.draw_info(self.snake.length, self.speed, screen)
+            except:
+                self.game_over = True
 
-        #print(self.flipflop)
         if self.game_over and self.flipflop > 0:
             self.draw_game_over(screen)
             self.draw_player_name(screen)
