@@ -12,3 +12,5 @@ A special blue feed rarely spawns. It removes all obstacles when eaten, but does
 When you hit LCTRL in the results screen, autoplay starts.
 
 Now working on porting this game into C++.
+
+Arcade font from (https://www.dafont.com/arcade-ya.font)
