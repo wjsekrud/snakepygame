@@ -13,13 +13,13 @@ GRID_SIZE = 20
 GRID_WIDTH = SCREEN_WIDTH / GRID_SIZE
 GRID_HEIGHT = SCREEN_HEIGHT / GRID_SIZE
 
-# Direction global variable
+# 방향 전역변수
 UP = (0, -1)
 DOWN = (0, 1)
 LEFT = (-1, 0)
 RIGHT = (1, 0)
 
-# Color global variable
+# 색상 전역변수
 WHITE = (255, 255, 255)
 ORANGE = (250, 150, 0)
 GRAY = (100, 100, 100)
@@ -71,8 +71,12 @@ class Snake(object):
             print('snake length: ' + str(self.length))
             self.game.game_over = True
             return
-            # code here
+            # code here``
         # If the snake moves normally
+        elif new in self.game.bot_snake.positions[1:]:
+            sleep(1)
+            self.game.game_over = True
+            return
         else:
             self.positions.insert(0, new)
             if len(self.positions) > self.length:
@@ -154,9 +158,9 @@ class Snake(object):
                         #print(pos)
                         grid[int(pos[1] / GRID_SIZE)][int(pos[0] / GRID_SIZE)] = 1
                     except:
-                        print("err!")
+                        print("overlapped obstacle")
         
-        for pos in self.positions[1:]:
+        for pos in game.snake.positions[1:]:
             grid[int(pos[1] / GRID_SIZE)][int(pos[0] / GRID_SIZE)] = 1
                     
         
@@ -172,6 +176,74 @@ class Snake(object):
         return min_distance, max_score, path
 
 
+class BotSnake(Snake):
+    def __init__(self, gameRef):
+        super().__init__(gameRef)
+        self.speed_factor = 0.8  # 봇 스네이크의 속도 조절 계수
+        self.automove = True
+        self.bAlive = True
+        self.respawncnt = 0
+
+    def move(self):
+        if self.path and self.bAlive:
+            self.autocontrol()
+            cur = self.positions[0]
+            x, y = self.direction
+            new = (cur[0] + (x * GRID_SIZE)), (cur[1] + (y * GRID_SIZE))
+            if new in self.positions[2:]:
+                self.die()
+                return
+            elif new[0] > SCREEN_WIDTH or new[0] < 0 or new[1] > SCREEN_HEIGHT or new[1] < 0:
+                self.die()
+                return
+            elif new in self.game.snake.positions[1:]:
+                self.die()
+                return
+            else:
+                self.positions.insert(0, new)
+                if len(self.positions) > self.length:
+                    self.positions.pop(-1)
+                return
+
+    def create(self):
+        super().create()
+        self.bAlive = True
+        self.automove = True
+        w = int(SCREEN_WIDTH / 2)
+        h = int(SCREEN_HEIGHT / 2)
+        sz = GRID_SIZE
+        while True:
+            self.positions[0] = (sz * random.randint(int(-w/sz)+1, int(h/sz)-1) + w, sz * random.randint(int(-h/sz)+1, int(h/sz)-1) + h)
+            if self.positions[0] not in self.game.snake.positions:
+                break
+
+    def draw(self, screen, bAlive):
+        if bAlive:
+            red, green, blue = 150 / (self.length - 1), 150, 50 / (self.length - 1)
+            for i, p in enumerate(self.positions):
+                color = (red * i, green, 100 + blue * i)
+                rect = pygame.Rect((p[0], p[1]), (GRID_SIZE, GRID_SIZE))
+                pygame.draw.rect(screen, color, rect)
+        else:
+            color = (255,255,255)
+            for i, p in enumerate(self.positions):
+                rect = pygame.Rect((p[0], p[1]), (GRID_SIZE, GRID_SIZE))
+                pygame.draw.rect(screen, color, rect)
+
+
+    def die(self):
+        self.bAlive = False
+        self.length = 1
+        self.positions = [[0,0]]
+
+    def respawncount(self):
+        self.respawncnt += 1
+        if self.respawncnt == 8:
+            self.create()
+            self.respawncnt = 0
+
+
+
 # Class Feed
 class Feed(object):
     def __init__(self):
@@ -179,7 +251,7 @@ class Feed(object):
         self.create()
 
     # Create Food
-    def create(self, snake_positions=[], obstacle_positions=[[]]):
+    def create(self, snake_positions=[], bot_positions =[], obstacle_positions=[[]]):
         self.color = ORANGE
         self.score = 100
         self.frame = 0
@@ -194,11 +266,11 @@ class Feed(object):
             new_position = [sz * random.randint(int(-w/sz)+1, int(h/sz)-1) + w, sz * random.randint(int(-h/sz)+1, int(h/sz)-1) + h]
 
             if new_position not in snake_positions:
-                chk = self.checkposition(new_position, obstacle_positions)
+                chk = self.checkposition(new_position, snake_positions, bot_positions, obstacle_positions)
             else:
                 pass
                 
-    def checkposition(self, new, obstacle_positions=[[]]):
+    def checkposition(self, new, snake_positions=[], bot_positions =[], obstacle_positions=[[]]):
         if obstacle_positions == [[]]:
             self.position = new
             return False
@@ -208,6 +280,15 @@ class Feed(object):
                 return True
             else:
                 self.position = new
+        
+                if snake_positions != []:
+                    player_distance = abs(snake_positions[0][0] - new[0]) + abs(snake_positions[0][1] - new[1])
+                    bot_distance = abs(bot_positions[0][0] - new[0]) + abs(bot_positions[0][1] - new[1])
+                    if player_distance <= bot_distance:
+                        return False
+                    else:
+                        return True
+
         return False
     
     def passframe(self):
@@ -311,6 +392,8 @@ class Game(object):
         self.flipflop = 20
 
         self.autorun = False
+        self.bot_snake = BotSnake(self)
+        _, _, self.bot_snake.path = self.bot_snake.calculate_max_score(self)
 
     def restart(self):
         self.player_name = "___"
@@ -326,6 +409,9 @@ class Game(object):
         self.score = 0
         self.min_distance, self.max_increment, self.path = self.snake.calculate_max_score(self)
         self.max_score = 0
+
+        self.bot_snake.create()
+        _, _, self.bot_snake.path = self.bot_snake.calculate_max_score(self)
 
 
 
@@ -369,7 +455,14 @@ class Game(object):
             self.snake.move()
             self.check_eat(self.snake, self.feed)
             self.check_special_eat(self.snake, self.special_feed)
+
+            
             self.speed = (20 + self.snake.length) / 4
+
+            self.bot_snake.move()
+            self.check_eat(self.bot_snake, self.feed)
+            self.check_special_eat(self.bot_snake, self.special_feed)
+
             self.feed.passframe()
 
             # 장애물과 충돌 검사
@@ -396,7 +489,7 @@ class Game(object):
 
     def spawnThings(self):
         Obspos = self.spawnObstacles()
-        self.feed.create(self.snake.positions, Obspos)
+        self.feed.create(self.snake.positions, self.bot_snake.positions, Obspos)
 
     # Check if the snake has eaten the food
     def check_eat(self, snake, feed):
@@ -406,20 +499,26 @@ class Game(object):
                 
                 #print("eat")
                 snake.eat()
-                self.score += feed.score
-                print(self.max_increment)
-                self.max_score += self.max_increment
+                if snake == self.snake:
+                    self.score += feed.score
+                    print(self.max_increment)
+                    self.max_score += self.max_increment
+                    if self.bot_snake.bAlive == False:
+                        self.bot_snake.respawncount()
                 
+                else:
+                    self.max_score += self.max_increment
                 # 랜덤한 크기와 모양의 장애물 추가
 
                 while True:
                     self.spawnThings()
                     _, self.max_increment, self.path = snake.calculate_max_score(self)
+                    _, _, self.bot_snake.path = self.bot_snake.calculate_max_score(self)
                     cnt += 1
                     if cnt > 10:
                         self.game_over = True
                         break
-                    if self.path != []:
+                    if (snake == self.snake and self.path != []) or (snake == self.bot_snake and snake.path != []):
                         break
 
                 self.check_eat(snake, feed)
@@ -457,14 +556,16 @@ class Game(object):
         screen.blit(text_obj, text_rect)
 
     def draw_dijkstrapath(self, screen):
-        for r, c in self.path:
-            pos = (c * GRID_SIZE, r * GRID_SIZE)
-            rect = pygame.Rect(pos, (GRID_SIZE, GRID_SIZE))
-            pygame.draw.rect(screen, (230, 230, 255), rect)
+        if self.autorun == True:
+            for r, c in self.path:
+                pos = (c * GRID_SIZE, r * GRID_SIZE)
+                rect = pygame.Rect(pos, (GRID_SIZE, GRID_SIZE))
+                pygame.draw.rect(screen, (230, 230, 255), rect)
 
     # Handle game frames
     def display_frame(self, screen):
         screen.fill(WHITE)
+        self.bot_snake.draw(screen,self.bot_snake.bAlive)
         self.draw_dijkstrapath(screen)
         self.snake.draw(screen)
         self.feed.draw(screen)
